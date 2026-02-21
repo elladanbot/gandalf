@@ -1,27 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Gandalf Receipt",
   "type": "object",
+  "required": ["id","actor","timestamp","status","intent","plan","artifacts"],
   "properties": {
-    "id": { "type": "string" },
-    "actor": { "type": "string" },
-    "requested_by": { "type": "string" },
-    "timestamp": { "type": "string", "format": "date-time" },
-    "status": { "type": "string", "enum": ["success","partial","failed"] },
-    "intent": { "type": "string" },
-    "plan": { "type": "array", "items": { "type": "string" } },
-    "artifacts": {
-      "type": "object",
-      "properties": {
-        "pr": { "type": "string" },
-        "commit": { "type": "string" },
-        "files": {
-          "type": "array",
-          "items": { "type": "string" }
-        }
-      },
-      "required": ["commit"]
-    }
-  },
-  "required": ["id", "actor", "timestamp","status"]
+    "id": {"type":"string"},
+    "actor": {"type":"string"},
+    "requested_by": {"type":"string"},
+    "timestamp": {"type":"string","format":"date-time"},
+    "status": {"enum":["success","failed","partial"]},
+    "intent": {"type":"string"},
+    "plan": {"type":"array","items":{"type":"string"}},
+    "actions": {"type":"array","items":{"type":"string"}},
+    "artifacts": {"type":"object"},
+    "verification": {"type":"array"},
+    "rollback": {"type":"array"}
+  }
 }

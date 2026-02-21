@@ -25,10 +25,15 @@
     "commit": "d9a219747bca51a551153f2841cb79dc9caec758"
   },
   "verification": [
-    "git log -1",
-    "ls receipts/templates",
-    "cat README.md"
-  ],
+  {
+    "command": "git log -1 --pretty=oneline",
+    "expect": "d9a219747bca51a551153f2841cb79dc9caec758"
+    },
+    {
+    "command": "ls receipts/templates",
+    "expect": "receipt.md"
+    }
+],
   "rollback": [
     "git checkout main",
     "git branch -D feat/receipts"
