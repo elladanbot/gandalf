@@ -22,12 +22,12 @@
   "artifacts": {
     "repository": "https://github.com/elladanbot/gandalf",
     "branch": "feat/receipts",
-    "commit": "d9a219747bca51a551153f2841cb79dc9caec758"
+    "commit": "9fdb43e4f192cf63f10cf4bbd28f30e49aa54e62"
   },
   "verification": [
   {
     "command": "git log -1 --pretty=oneline",
-    "expect": "d9a219747bca51a551153f2841cb79dc9caec758"
+    "expect": "9fdb43e4f192cf63f10cf4bbd28f30e49aa54e62"
     },
     {
     "command": "ls receipts/templates",
