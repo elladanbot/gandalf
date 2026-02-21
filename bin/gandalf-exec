@@ -1,0 +1,78 @@
+cat > bin/gandalf-exec <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# gandalf-exec
+# -----------
+# Minimal safe command runner for remote control (Telegram/OpenClaw).
+# - Forces repo root
+# - Logs everything
+# - Allows only a small allowlist of commands (edit list as needed)
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+LOG_DIR="$ROOT/receipts/logs"
+mkdir -p "$LOG_DIR"
+TS="$(date -u +"%Y%m%dT%H%M%SZ")"
+LOG="$LOG_DIR/exec-$TS.log"
+
+# Allowlist: keep this small on purpose (you can expand later)
+allowed_prefixes=(
+  "ls"
+  "pwd"
+  "cat"
+  "sed"
+  "perl"
+  "python3"
+  "node"
+  "npm"
+  "pnpm"
+  "yarn"
+  "git status"
+  "git diff"
+  "git add"
+  "git commit"
+  "git push"
+  "./bin/run-skill"
+)
+
+cmd="${*:-}"
+if [[ -z "$cmd" ]]; then
+  echo "Usage: bin/gandalf-exec <command...>" >&2
+  exit 2
+fi
+
+is_allowed="0"
+for p in "${allowed_prefixes[@]}"; do
+  if [[ "$cmd" == "$p"* ]]; then
+    is_allowed="1"
+    break
+  fi
+done
+
+{
+  echo "=== gandalf-exec ==="
+  echo "time_utc: $TS"
+  echo "cwd: $ROOT"
+  echo "cmd: $cmd"
+} >> "$LOG"
+
+if [[ "$is_allowed" != "1" ]]; then
+  echo "DENIED: command not allowed" | tee -a "$LOG" >&2
+  echo "cmd: $cmd" | tee -a "$LOG" >&2
+  exit 3
+fi
+
+# Run and capture output
+{
+  echo "--- output ---"
+  bash -lc "$cmd"
+  echo "--- exit: $? ---"
+} >> "$LOG" 2>&1
+
+# Print output to caller too
+cat "$LOG"
+EOF
+
+chmod +x bin/gandalf-exec
