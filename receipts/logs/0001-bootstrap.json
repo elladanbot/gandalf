@@ -22,7 +22,7 @@
   "artifacts": {
     "repository": "https://github.com/elladanbot/gandalf",
     "branch": "feat/receipts",
-    "commit": "REPLACE_WITH_COMMIT_HASH"
+    "commit": "48872b1"
   },
   "verification": [
     "git log -1",
