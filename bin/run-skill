@@ -126,7 +126,7 @@ fi
 # ----------------------------
 # Resolve skill path
 # ----------------------------
-SKILL_PATH_REL="skills/${SKILL_ID//./\/}.md"
+SKILL_PATH_REL="skills/$(printf '%s' "$SKILL_ID" | tr '.' '/')".md   
 SKILL_PATH="$ROOT/$SKILL_PATH_REL"
 
 if [[ ! -f "$SKILL_PATH" ]]; then
