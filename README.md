@@ -1,135 +1,265 @@
-# 🧙 Gandalf
+🧙 Gandalf
 
-**Gandalf is an autonomous execution engine.**
+Gandalf is an autonomous execution engine for verifiable action.
 
-Not a chatbot.  
-Not a copilot.  
+Not a chatbot.
+Not a copilot.
 Not a workflow toy.
 
-Gandalf is a system that turns intent into verifiable reality.
+Gandalf turns intent into reality — and proves it happened.
 
----
+⸻
 
-## The Problem
+The Problem
 
-AI systems can talk convincingly.  
+AI systems can speak fluently.
 They cannot prove they actually did anything.
 
-Logs can be faked.  
-Text can be hallucinated.  
+Logs can be fabricated.
+Text can be hallucinated.
 Claims are cheap.
 
 Trust collapses.
 
----
+⸻
 
-## The Gandalf Principle
+The Gandalf Principle
 
-> If an action happened, it must leave a verifiable trace.
+If an action happened, it must leave a verifiable trace.
 
 Every real action performed by Gandalf produces:
-
-- A persistent artifact  
-- A cryptographic reference (commit / hash / PR / file)  
-- A human-readable proof object  
+• A persistent artifact
+• A concrete reference (commit, file, PR, hash, etc.)
+• A human-readable proof object
 
 No artifact → No action.
 
----
+⸻
 
-## What Gandalf Is Becoming
+What Gandalf Is
 
-Gandalf evolves into a general-purpose execution layer where:
+Gandalf is a general-purpose execution layer where:
+• Humans express intent
+• Gandalf plans
+• Gandalf executes deterministic operations
+• The world changes
+• Proof is generated automatically
 
-- Humans express intent  
-- Gandalf plans  
-- Gandalf executes  
-- The world changes  
-- Proof is generated automatically  
+Gandalf is not a model.
+Gandalf is infrastructure around models.
 
-Gandalf is not a model.  
-Gandalf is an operational substrate.
+⸻
 
----
+Core Primitive: Receipts
 
-## Receipts
+A Receipt is Gandalf’s atomic unit of truth.
 
-A **Receipt** is Gandalf’s atomic unit of truth.
+A receipt records:
+• Intent
+• Plan
+• Actions
+• Artifacts
+• Verification commands
+• Rollback instructions
 
-A receipt describes:
+Receipts are immutable once written.
+Together, they form a verifiable ledger of reality.
 
-- Why the action existed  
-- What was attempted  
-- What actually happened  
-- What changed  
-- Where the evidence lives  
-- How to verify  
+⸻
 
-Receipts are immutable once written.  
-They form a verifiable ledger of reality.
+Core Primitive: Skills
 
----
+A Skill is a reusable, auditable operation.
 
-## Properties
+Examples:
+• Create repository
+• Create branch
+• Create file
+• Modify file
+• Run formatter
+• Execute tests
+
+Skills are plain-text definitions that declare:
+• Inputs
+• Operations
+• Verification
+• Rollback
+
+Skills do not decide.
+They only execute.
+
+⸻
+
+Runtime
+
+Gandalf includes a small runtime that:
+• Loads skills
+• Injects inputs
+• Renders operations
+• Executes them locally
+• Writes receipts
+
+The runtime is intentionally minimal.
+
+Complexity lives in receipts, not in opaque orchestration.
+
+⸻
+
+Properties
 
 Gandalf is designed to be:
-
-- Deterministic where possible  
-- Auditable by default  
-- Composable across agents  
-- Human-verifiable  
-- Machine-readable  
+• Deterministic where possible
+• Auditable by default
+• Composable
+• Human-verifiable
+• Machine-readable
 
 Every layer optimizes for trust, not vibes.
 
----
+⸻
 
-## Long-Term Vision
-
-Gandalf becomes infrastructure for:
-
-- Autonomous software engineering  
-- Scientific experimentation  
-- Operations & DevOps  
-- Research automation  
-- Agent collectives  
-- Self-improving systems  
-
-Where today we run scripts, tomorrow we run Gandalf.
-
----
-
-## Mental Model
+Mental Model
 
 Think of Gandalf as:
 
-**Git + Makefile + Agent Brain + Proof System**
+Git + Makefile + Agent Brain + Proof System
 
 But coherent.
 
----
+⸻
 
-## Non-Goals
+Long-Term Vision
 
-- Entertainment chatbots  
-- Prompt toys  
-- Fake autonomy demos  
-- Unverifiable “AI did X” claims  
+Gandalf becomes infrastructure for:
+• Autonomous software engineering
+• Research automation
+• Operations & DevOps
+• Scientific experimentation
+• Agent collectives
+• Self-improving systems
+
+Where today we run scripts, tomorrow we run Gandalf.
+
+⸻
+
+Non-Goals
+
+• Entertainment chatbots
+• Prompt toys
+• Fake autonomy demos
+• Unverifiable “AI did X” claims
 
 If Gandalf cannot prove it, Gandalf did not do it.
 
----
+⸻
 
-## Status
+Status
 
-Early stage.  
+Early stage.
 Designing primitives before scale.
 
-Speed later.  
+Speed later.
 Correctness first.
 
----
+⸻
 
-## One Sentence
+One Sentence
 
-**Gandalf is an agent that proves it changed reality.**
+Gandalf is an agent that proves it changed reality.
+
+⸻
+
+Repository Layout (Current 21 Feb 2026)
+
+gandalf/
+├─ receipts/
+│  ├─ logs/            # Immutable executed receipts
+│  ├─ templates/       # Receipt templates
+│  └─ schema/          # JSON schema for receipts
+│
+├─ skills/
+│  ├─ github/
+│  │   ├─ create-repo.md
+│  │   ├─ create-branch.md
+│  │   └─ create-file.md
+│  └─ filesystem/
+│      └─ create-file.md
+│
+├─ bin/
+│  └─ run-skill        # Minimal skill runtime
+│
+└─ README.md
+
+⸻
+
+What Is a Skill (Practically)
+
+A skill is a plain-text file that declares:
+• Inputs
+• Operations to run
+• Verification commands
+• Rollback commands
+
+Example (simplified):
+
+# Skills: github.create-repo
+
+Creates a GitHub repository using GitHub CLI.
+
+Inputs:
+- repo_name
+- visibility
+
+Operation:
+gh repo create "$repo_name" --$visibility
+
+Skills are deterministic execution units.
+They do not contain reasoning.
+They only declare how.
+
+⸻
+
+What Is run-skill
+
+run-skill is a small local runtime that:
+
+1. Loads a skill file
+2. Injects inputs
+3. Renders operations
+4. Executes them
+5. Writes a receipt
+
+It is intentionally simple and auditable.
+
+⸻
+
+Running a Skill (Example)
+
+./bin/run-skill github.create-repo repo_name=my-app visibility=private
+
+If the action succeeds, a new receipt is written to:
+
+receipts/logs/
+
+That receipt becomes the permanent proof.
+
+⸻
+
+Design Philosophy
+
+• Receipts are the source of truth
+• Skills are reusable execution blocks
+• Runtime stays minimal
+• Intelligence lives outside execution
+
+⸻
+
+What We Are Not Optimizing For Yet
+
+• Performance
+• Parallelism
+• Cloud orchestration
+• UX polish
+
+Correctness first.
+Trust first.

@@ -1,0 +1,332 @@
+#!/usr/bin/env bash
+# run-skill
+# ----------
+# Render a skill markdown file from ./skills with variable substitution.
+#
+# Skill id → file path:
+#   github.create-repo  => skills/github/create-repo.md
+#
+# Variable syntax supported (intentionally strict to avoid clobbering code blocks):
+#   {{var}}   and   ${var}
+# (We DO NOT substitute bare $var.)
+#
+# Inputs come from CLI key=value pairs:
+#   ./bin/run-skill github.create-repo repo_name=my-app visibility=private
+#
+# Output modes:
+#   --print (default) | --copy (macOS pbcopy) | --open (VS Code or $EDITOR)
+#
+# Extras:
+#   --list       : list available skills and exit
+#   --dry-run    : show resolved skill path + parsed variables, no rendering
+#   --validate   : warn if any placeholders are missing inputs
+#   --strict     : fail if any placeholders are missing inputs
+#   --receipt    : write a draft receipt json to receipts/logs/
+#
+# Note: --open writes a temp file in /tmp and does NOT delete it (by design).
+
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+run-skill — render a skill markdown file from ./skills with optional inputs.
+
+Usage:
+  ./bin/run-skill <skill_id> [key=value ...] [--print|--copy|--open]
+  ./bin/run-skill --list
+  ./bin/run-skill <skill_id> [key=value ...] --dry-run
+  ./bin/run-skill <skill_id> [key=value ...] --validate [--strict]
+  ./bin/run-skill <skill_id> [key=value ...] --receipt
+
+Examples:
+  ./bin/run-skill --list
+  ./bin/run-skill github.create-repo repo_name=my-app visibility=private
+  ./bin/run-skill github.create-branch branch_name=feat/receipts base=main --copy
+  ./bin/run-skill filesystem.create-file path=receipts/logs/0002-test.json contents='{"ok":true}' --open --receipt
+
+Variable syntax supported:
+  {{repo_name}}  ${repo_name}
+
+USAGE
+}
+
+need_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+list_skills() {
+  local root="$1"
+  if [[ ! -d "$root/skills" ]]; then
+    echo "(no ./skills folder found)"
+    return 0
+  fi
+  (cd "$root" && find skills -type f -name '*.md' \
+    | sed 's#^skills/##' \
+    | sed 's#\.md$##' \
+    | tr '/' '.' \
+    | sort)
+}
+
+# ----------------------------
+# Parse CLI
+# ----------------------------
+MODE="print"          # print | copy | open
+MAKE_RECEIPT="0"      # 0 | 1
+DO_LIST="0"           # 0 | 1
+DRY_RUN="0"           # 0 | 1
+VALIDATE="0"          # 0 | 1
+STRICT="0"            # 0 | 1
+
+SKILL_ID=""
+KV_ARGS=()            # raw key=value strings (preserve newlines safely via argv)
+
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) usage; exit 0 ;;
+    --print)   MODE="print" ;;
+    --copy)    MODE="copy" ;;
+    --open)    MODE="open" ;;
+    --receipt) MAKE_RECEIPT="1" ;;
+    --list)    DO_LIST="1" ;;
+    --dry-run) DRY_RUN="1" ;;
+    --validate) VALIDATE="1" ;;
+    --strict)  STRICT="1" ;;
+    *=*)
+      KV_ARGS+=("$arg")
+      ;;
+    *)
+      if [[ -z "$SKILL_ID" ]]; then
+        SKILL_ID="$arg"
+      else
+        echo "Unknown argument: $arg" >&2
+        echo "" >&2
+        usage
+        exit 2
+      fi
+      ;;
+  esac
+done
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+
+if [[ "$DO_LIST" == "1" ]]; then
+  list_skills "$ROOT"
+  exit 0
+fi
+
+if [[ -z "$SKILL_ID" ]]; then
+  echo "Missing <skill_id>." >&2
+  usage
+  exit 2
+fi
+
+if ! need_cmd python3; then
+  echo "python3 is required." >&2
+  exit 4
+fi
+
+# ----------------------------
+# Resolve skill path
+# ----------------------------
+SKILL_PATH_REL="skills/${SKILL_ID//./\/}.md"
+SKILL_PATH="$ROOT/$SKILL_PATH_REL"
+
+if [[ ! -f "$SKILL_PATH" ]]; then
+  echo "Skill not found: $SKILL_PATH_REL" >&2
+  echo "" >&2
+  echo "Available skills:" >&2
+  list_skills "$ROOT" >&2
+  exit 3
+fi
+
+# ----------------------------
+# Build KV JSON once (from argv; no newline/env issues)
+# ----------------------------
+KV_JSON="$(
+python3 - "$@" <<'PY'
+import json, sys
+
+kv = {}
+for arg in sys.argv[1:]:
+  if arg.startswith("--"):
+    continue
+  if "=" not in arg:
+    continue
+  k, v = arg.split("=", 1)
+  kv[k] = v
+
+print(json.dumps(kv, ensure_ascii=False))
+PY
+)"
+
+if [[ "$DRY_RUN" == "1" ]]; then
+  echo "root:      $ROOT"
+  echo "skill_id:  $SKILL_ID"
+  echo "skill:     $SKILL_PATH_REL"
+  echo "vars_json: $KV_JSON"
+  exit 0
+fi
+
+# ----------------------------
+# Render + (optional) validate placeholders
+# ----------------------------
+# We only substitute {{var}} and ${var}.
+# We can validate unresolved placeholders if requested.
+RENDER_RESULT="$(
+RUN_SKILL_KV="$KV_JSON" RUN_SKILL_VALIDATE="$VALIDATE" RUN_SKILL_STRICT="$STRICT" \
+python3 - "$SKILL_PATH" <<'PY'
+import json, os, re, sys
+
+path = sys.argv[1]
+text = open(path, "r", encoding="utf-8").read()
+
+kv = json.loads(os.environ.get("RUN_SKILL_KV", "{}"))
+validate = os.environ.get("RUN_SKILL_VALIDATE", "0") == "1"
+strict = os.environ.get("RUN_SKILL_STRICT", "0") == "1"
+
+# Match {{var}} or ${var}
+pat = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}|\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+
+missing = set()
+
+def repl(m):
+  key = m.group(1) or m.group(2)
+  if key in kv:
+    return str(kv[key])
+  missing.add(key)
+  return m.group(0)
+
+rendered = pat.sub(repl, text)
+
+if validate and missing:
+  msg = "Missing inputs for placeholders: " + ", ".join(sorted(missing))
+  if strict:
+    print(msg, file=sys.stderr)
+    sys.exit(10)
+  else:
+    print("WARNING: " + msg, file=sys.stderr)
+
+sys.stdout.write(rendered)
+PY
+)"
+
+OUTPUT="$RENDER_RESULT"
+
+# ----------------------------
+# Optional: write a draft receipt (safe JSON serialization)
+# ----------------------------
+if [[ "$MAKE_RECEIPT" == "1" ]]; then
+  LOG_DIR="$ROOT/receipts/logs"
+  mkdir -p "$LOG_DIR"
+
+  # Next 4-digit prefix based on existing: 0001-*.json
+  next_num=1
+  shopt -s nullglob
+  for f in "$LOG_DIR"/*.json; do
+    base="$(basename "$f")"
+    if [[ "$base" =~ ^([0-9]{4})- ]]; then
+      n="${BASH_REMATCH[1]}"
+      n=$((10#$n))
+      if (( n >= next_num )); then
+        next_num=$((n + 1))
+      fi
+    fi
+  done
+  shopt -u nullglob
+
+  id_num="$(printf "%04d" "$next_num")"
+  slug="${SKILL_ID##*.}"
+  slug="${slug//[^a-zA-Z0-9._-]/-}"
+  receipt_path="$LOG_DIR/${id_num}-${slug}.json"
+
+  branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+  commit="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo "")"
+  ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+  # Generate receipt JSON via Python (no broken JSON on quotes/newlines)
+  RUN_SKILL_RECEIPT_PATH="$receipt_path" \
+  RUN_SKILL_TS="$ts" \
+  RUN_SKILL_SKILL_ID="$SKILL_ID" \
+  RUN_SKILL_SKILL_PATH_REL="$SKILL_PATH_REL" \
+  RUN_SKILL_BRANCH="$branch" \
+  RUN_SKILL_COMMIT="$commit" \
+  RUN_SKILL_KV="$KV_JSON" \
+  python3 - <<'PY'
+import json, os
+
+receipt_path = os.environ["RUN_SKILL_RECEIPT_PATH"]
+ts = os.environ["RUN_SKILL_TS"]
+skill_id = os.environ["RUN_SKILL_SKILL_ID"]
+skill_path = os.environ["RUN_SKILL_SKILL_PATH_REL"]
+branch = os.environ["RUN_SKILL_BRANCH"]
+commit = os.environ["RUN_SKILL_COMMIT"]
+kv = json.loads(os.environ.get("RUN_SKILL_KV", "{}"))
+
+requested_by = kv.get("requested_by", "")
+
+# id is independent of git commit hash; keep it stable as sequence+slug
+base_name = os.path.basename(receipt_path)
+rid = base_name.replace(".json","")
+
+data = {
+  "id": rid,
+  "actor": "Gandalf",
+  "requested_by": requested_by,
+  "timestamp": ts,
+  "status": "partial",
+  "intent": f"Run skill {skill_id}",
+  "plan": [
+    "Load skill markdown",
+    "Render with provided inputs",
+    "Execute steps manually or via automation",
+    "Record outcome"
+  ],
+  "actions": [],
+  "artifacts": {
+    "branch": branch,
+    "commit": commit,
+    "skill": skill_id,
+    "skill_path": skill_path
+  },
+  "inputs": kv,
+  "verification": [],
+  "rollback": []
+}
+
+with open(receipt_path, "w", encoding="utf-8") as f:
+  json.dump(data, f, ensure_ascii=False, indent=2)
+  f.write("\n")
+PY
+
+  echo "Wrote receipt: ${receipt_path#$ROOT/}" >&2
+fi
+
+# ----------------------------
+# Output handling
+# ----------------------------
+case "$MODE" in
+  print)
+    printf "%s\n" "$OUTPUT"
+    ;;
+  copy)
+    if need_cmd pbcopy; then
+      printf "%s" "$OUTPUT" | pbcopy
+      echo "Copied rendered skill to clipboard." >&2
+    else
+      echo "pbcopy not found. Falling back to print." >&2
+      printf "%s\n" "$OUTPUT"
+    fi
+    ;;
+  open)
+    tmpfile="$(mktemp "/tmp/run-skill.${SKILL_ID//./_}.XXXXXX.md")"
+    printf "%s\n" "$OUTPUT" > "$tmpfile"
+    if need_cmd code; then
+      code "$tmpfile" >/dev/null 2>&1 || true
+      echo "Opened rendered skill in VS Code: $tmpfile" >&2
+    else
+      "${EDITOR:-vi}" "$tmpfile"
+    fi
+    ;;
+  *)
+    echo "Unknown mode: $MODE" >&2
+    exit 5
+    ;;
+esac
