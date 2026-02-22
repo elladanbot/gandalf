@@ -137,6 +137,24 @@ if [[ ! -f "$SKILL_PATH" ]]; then
   exit 3
 fi
 
+# -----------------------------
+# Execute Operation block
+# -----------------------------
+
+OPERATION_SCRIPT="$(awk '
+  /^Operation:/ {flag=1; next}
+  /^Verification:/ {flag=0}
+  flag {print}
+' "$SKILL_PATH")"
+
+if [ -z "$OPERATION_SCRIPT" ]; then
+  echo "No Operation block found in skill." >&2
+  exit 5
+fi
+
+echo "$OPERATION_SCRIPT" | bash
+
+
 # ----------------------------
 # Build KV JSON once (from argv; no newline/env issues)
 # ----------------------------

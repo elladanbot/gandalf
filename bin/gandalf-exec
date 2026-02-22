@@ -1,4 +1,3 @@
-cat > bin/gandalf-exec <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -73,6 +72,3 @@ fi
 
 # Print output to caller too
 cat "$LOG"
-EOF
-
-chmod +x bin/gandalf-exec
